@@ -56,6 +56,18 @@ let height set = match set with
 
 let make l k r = Node (l, k, r, max (height l) (height r) + 1)
 
+(* DEBUG FUNCTION TO USE IN ASSERTIONS *)
+(* CHECKS IF SET'S TREE IS BALANCED    *)
+let is_balanced set =
+	let rec helper s =
+		match s with
+		| Empty -> (0, true)
+		| Node (l, _, r, _) ->
+			let l_first, l_second = helper l
+			and r_first, r_second = helper r
+			in (max l_first r_first + 1, l_second && r_second && (abs (l_first - r_first) <= 2))
+	in match helper set with (_, res) -> res
+
 let bal l k r =
   let hl = height l in
   let hr = height r in
@@ -160,6 +172,8 @@ let split x set =
           	let (lr, pres, rr) = loop x r in (join l v lr, pres, rr)
   in
   let setl, pres, setr = loop x set in
+  	assert(is_balanced setl);
+  	assert(is_balanced setr);
   	(setl, pres, setr)
 
 let remove x set =
@@ -200,4 +214,4 @@ let elements set =
   let rec loop acc = function
       Empty -> acc
     | Node(l, k, r, _) -> loop (k :: loop acc r) l in
-  loop [] set
+  loop [] set;;
