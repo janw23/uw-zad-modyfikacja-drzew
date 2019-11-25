@@ -1,4 +1,4 @@
 cd src
-ocamlopt eval.ml -o ../build/eval
+ocamlopt iSet.mli iSet.ml -o ../build/eval
 cd ..
 bash clean_src.sh
