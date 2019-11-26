@@ -1,0 +1,9 @@
+iSet.cmo : \
+    iSet.cmi
+iSet.cmx : \
+    iSet.cmi
+iSet.cmi :
+test.cmo : \
+    iSet.cmi
+test.cmx : \
+    iSet.cmx
