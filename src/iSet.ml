@@ -39,8 +39,8 @@ let unify (a, b) (c, d) =
 let slicable_left  x (a, _) = x > a
 and slicable_right x (_, b) = x < b
 
-let slice_left  x (a, _) = (a, x)
-and slice_right x (_, b) = (x, b)
+let slice_left  (x : int) (a, _) = (a, x - 1)
+and slice_right (x : int) (_, b) = (x + 1, b)
 
 (* ----------IMPLEMENTACJA DRZEW AVL---------- *)
 
@@ -68,6 +68,7 @@ let is_balanced set =
 			in (max l_first r_first + 1, l_second && r_second && (abs (l_first - r_first) <= 2))
 	in match helper set with (_, res) -> res
 
+(* T = O(1) *)
 let bal l k r =
   let hl = height l in
   let hr = height r in
@@ -119,6 +120,7 @@ let is_empty set =
 (* Wstawia przedział [x] do drzewa [set] bez sprawdzania 			  *)
 (* czy są jakieś przedziały, które są przyległe lub nachodzące na [x] *)
 (* TODO *)
+(* T = O(log(height set)) *)
 let rec add_brutal x set = match set with
   | Node (l, k, r, h) ->
       let c = cmp x k in
@@ -145,10 +147,13 @@ let rec add_one x set = match set with
 
 let add x set = add_one x set
 
+(* Łączy drzewa l, r używając v jako wartości nowego korzenia          *)
+(* Wszystkie przedziały w l, v, r powinny być rozłączne i nieprzyległe *)
+(* T = O(height l - height r)                                           *)
 let rec join l v r =
   match (l, r) with
-    (Empty, _) -> add_one v r
-  | (_, Empty) -> add_one v l
+  | (Empty, _) -> add_brutal v r
+  | (_, Empty) -> add_brutal v l
   | (Node(ll, lv, lr, lh), Node(rl, rv, rr, rh)) ->
       if lh > rh + 2 then bal ll lv (join lr v r) else
       if rh > lh + 2 then bal (join l v rl) rv rr else
@@ -156,7 +161,7 @@ let rec join l v r =
 
 (* Dostaje liczbę [x] oraz drzewo [set] 												   *)
 (* Zwraca trójkę: (drzewo elementów < [x], czy [set] zawiera [x]?, drzewo elementów > [x]) *)
-(* TODO: Sprawdzić, czy to działa *)
+(* TODO: Raczej działa xD *)
 let split x set =
   let rec loop x = function
     | Empty -> (Empty, false, Empty)
@@ -171,27 +176,27 @@ let split x set =
         else
           	let (lr, pres, rr) = loop x r in (join l v lr, pres, rr)
   in
-  let setl, pres, setr = loop x set in
-  	assert(is_balanced setl);
-  	assert(is_balanced setr);
-  	(setl, pres, setr)
+	let setl, pres, setr = loop x set in
+	  	assert(is_balanced setl);
+	  	assert(is_balanced setr);
+	  	(setl, pres, setr)
 
-let remove x set =
-  let rec loop = function
-    | Node (l, k, r, _) ->
-        let c = cmp x k in
-        if c = 0 then merge l r else
-        if c < 0 then bal (loop l) k r else bal l k (loop r)
-    | Empty -> Empty in
-      loop set
+(* Usuwa z set'a wszystkie elementy należące do przedziału [x, y] *)
+let remove (x, y) set =
+	let l = match split x set with (l,_,_) -> l
+	and r = match split y set with (_,_,r) -> r
+	in 
+		assert(is_balanced (merge l r));
+		merge l r
 
-let mem x set = true
-  (*let rec loop = function
-    | Node (l, k, r, _) ->
-        let c = cmp x k in
-        c = 0 || loop (if c < 0 then l else r)
-    | Empty -> false in
-  loop set*)
+(* Zwraca true jeśli [x] należy do jakiegoś przedziału w [set] *)
+let mem x set =
+  	let rec loop = function
+    	| Node (l, k, r, _) ->
+        	let c = cmp_with_num x k in
+        	c = 0 || loop (if c < 0 then l else r)
+    	| Empty -> false
+  	in loop set
 
 let exists = mem
 
@@ -208,6 +213,7 @@ let fold f set acc =
           loop (f k (loop acc l)) r in
   loop acc set
 
+(*TODO *)
 let below x set = max_int
 
 let elements set = 
@@ -215,3 +221,81 @@ let elements set =
       Empty -> acc
     | Node(l, k, r, _) -> loop (k :: loop acc r) l in
   loop [] set;;
+
+(* -------DEBUGGING------- *)
+
+let set_from_list l =
+	let rec helper set lst =
+		match lst with
+		| [] -> set
+		| h :: t -> helper (add_brutal h set) t
+	in helper empty l
+
+let r_stride x r m =
+	x + (Random.int r) + m
+
+let gen_interval_list n =
+	let rec helper k p acc =
+		if k = 0 then acc
+		else 
+			let l = r_stride p 20 1 in
+			let r = r_stride l 20 0 in
+			helper (k - 1) (r_stride r 20 0) ((l, r) :: acc)
+	in List.rev (helper n (-100) [])
+
+let split_list x l =
+	let rec helper acc lst =
+		match lst with
+		| [] -> (acc, false, lst)
+		| h :: t ->
+			let c = cmp_with_num x h in
+			if c = 0 then ((if slicable_left  x h then (slice_left  x h) :: acc else acc),
+						   true,
+						   (if slicable_right x h then (slice_right x h) :: t   else t))
+			else if c < 0 then (acc, false, lst)
+			else helper (h :: acc) t
+	in match helper [] l with
+		(l, pres, r) -> (List.rev l, pres, r)
+
+let str_pair (a, b) =
+	"(" ^ (string_of_int a) ^ ", " ^ (string_of_int b) ^ ")"
+
+let str_list l =
+	let rec helper lst =
+		match lst with
+		| [] -> "]"
+		| h :: [] -> (str_pair h) ^ (helper [])
+		| h :: t  -> (str_pair h) ^ "; " ^ (helper t)
+	in "[" ^ (helper l)
+
+let print s   = print_string s
+and println s = print_string (s ^ "\n");;
+
+let ilst = gen_interval_list 10;;
+println (str_list ilst);;
+
+let iset = set_from_list ilst;;
+iter (function e -> println (str_pair e)) iset;;
+assert(is_balanced iset);;
+
+let ilst_l, ilst_pres, ilst_r = split_list 28 ilst;;
+let iset_l, iset_pres, iset_r = split 28 iset;;
+
+println "List split result:";;
+println ("Left = " ^ (str_list ilst_l));;
+println ("Pres = " ^ (if ilst_pres then "true" else "false"));;
+println ("Right = " ^ (str_list ilst_r));;
+
+println "Set split result:";;
+println ("Left = " ^ (str_list (elements iset_l)));;
+println ("Pres = " ^ (if iset_pres then "true" else "false"));;
+println ("Right = " ^ (str_list (elements iset_r)));;
+println "\n\n\n";;
+
+assert(ilst_pres = iset_pres);;
+assert(ilst_l = elements iset_l);;
+assert(ilst_r = elements iset_r);;
+
+let iset = set_from_list ilst;;
+println (str_list (elements iset));;
+println (str_list (elements (remove (28, 29) iset)));;
