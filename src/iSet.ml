@@ -1,3 +1,10 @@
+let print s   = print_string s
+and println s = print_string (s ^ "\n");;
+
+let str_pair (a, b) =
+	"(" ^ (string_of_int a) ^ ", " ^ (string_of_int b) ^ ")"
+
+
 (* Porównuje przedziały [a, b] i [c, d]     *)
 (* Najpierw porównuje początki przedziałów       *)
 (* a jeśli są takie same to porównuje ich końce  *)
@@ -24,7 +31,8 @@ let cmp_with_num x (a, b) =
 
 (* Zwraca true jeśli [a, b] a [c, d] nachodzą na siebie lub są przyległe *)
 let joint (a, b) (c, d) =
-    (b + 1 >= c && a <= d + 1) || (d + 1 >= a && c <= b + 1)
+    if (b + 1 >= c && a <= d + 1) || (d + 1 >= a && c <= b + 1) then 0
+	else cmp (a, b) (c, d) 
 
 (* Zwracają odpowiednio minimum i maksimum z dwóch liczb całkowitych *)
 let min (x : int) (y : int) = if x < y then x else y
@@ -36,7 +44,6 @@ and second (_, b) = b
 
 (* Łączy dwa przyległe lub nachodzące przedziały w jeden *)
 let unify (a, b) (c, d) =
-    assert(joint (a, b) (c, d));
     (min a c, max b d)
 
 let slicable_left  x (a, _) = x > a
@@ -183,7 +190,8 @@ let split x set =
 let joint_rightmost x set =
 	let rec helper acc = function
 		| Node (l, k, r, _) ->
-			if joint x k then helper k r
+			println ("joint " ^ (str_pair x) ^ " " ^ (str_pair k) ^ " = " ^ (string_of_int (joint x k)));
+			if joint x k >= 0 then helper k r
 			else helper acc l
 		| Empty -> acc
 	in helper x set
@@ -193,7 +201,8 @@ let joint_rightmost x set =
 let joint_leftmost x set =
 	let rec helper acc = function
 		| Node (l, k, r, _) ->
-			if joint x k then helper k l
+			println ("joint " ^ (str_pair x) ^ " " ^ (str_pair k) ^ " = " ^ (string_of_int (joint x k)));
+			if joint x k <= 0 then helper k l
 			else helper acc r
 		| Empty -> acc
 	in helper x set
@@ -209,6 +218,8 @@ let remove (x, y) set =
 let add x set =
 	let rightmost = joint_rightmost x set
 	and leftmost  = joint_leftmost  x set in
+	println ("rightmost = " ^ (str_pair rightmost));
+	println ("leftmost = " ^ (str_pair leftmost));
 	let k = (min (first x) (first leftmost), max (second x) (second rightmost))
 	in add_brutal k (remove k set)
 
@@ -250,7 +261,7 @@ let elements set =
   loop [] set;;
 
 (* -------DEBUGGING------- *)
-(*
+
 let set_from_list l =
 	let rec helper set lst =
 		match lst with
@@ -289,9 +300,6 @@ let rec dfs f set =
 	| Node(l, k, r, h) -> f (l, k, r, h); dfs f l; dfs f r
 	| Empty -> ()
 
-let str_pair (a, b) =
-	"(" ^ (string_of_int a) ^ ", " ^ (string_of_int b) ^ ")"
-
 let str_list l =
 	let rec helper lst =
 		match lst with
@@ -300,8 +308,9 @@ let str_list l =
 		| h :: t  -> (str_pair h) ^ "; " ^ (helper t)
 	in "[" ^ (helper l)
 
-let print s   = print_string s
-and println s = print_string (s ^ "\n");;
+
+
+(*
 
 let ilst = gen_interval_list 10000;;
 println (str_list ilst);;
@@ -340,6 +349,20 @@ println (str_list (elements (remove (1000, 6000) iset)));;
 
 
 (* TESTOWANKO *)
+
+let string_of_tree t = 
+  let rec fmt_tree fmt = function Empty -> Format.fprintf fmt "Empty"
+    | Node (l,(a,b),r,_) ->
+        Format.fprintf fmt "@[<hv 5>Node(%a,@ (%d,%d),@ %a@,)@]"
+          fmt_tree l a b fmt_tree r
+  in
+  fmt_tree Format.str_formatter t;
+  Format.flush_str_formatter ();;
+
+let print_tree t =
+  print_string (string_of_tree t);;
+
+
 let zle = ref 0
 let test n b =
 	print_string (string_of_int n ^ "\n");
@@ -424,6 +447,12 @@ test 91 (elements (add (6,12) s) = [(-1, 1); (3, 4); (6, 12); (14, 15); (17, 18)
 test 92 (elements (add (6,13) s) = [(-1, 1); (3, 4); (6, 15); (17, 18); (20, 21)]);;
 test 93 (elements (add (5,13) s) = [(-1, 1); (3, 15); (17, 18); (20, 21)]);;
 
+print_tree (add (6,13) s);;
+println "";;
+println (str_list (elements s));;
+println (str_list (elements (add (6,13) s)));;
+
+assert false;;
 
 (* remove *)
 test 97 (elements (remove (-10,-2) s) = [(-1, 1); (3, 4); (6, 7); (9, 10); (14, 15); (17, 18); (20, 21)]);;
