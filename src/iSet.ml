@@ -22,8 +22,7 @@ let cmp_with_num x (a, b) =
 	else if x > b then 1
 	else 0
 
-(* Zwraca true jeśli [a, b] a [c, d] nachodzą na siebie *)
-(* lub są przyległe. W przeciwnym przypadku false           *)
+(* Zwraca true jeśli [a, b] a [c, d] nachodzą na siebie lub są przyległe *)
 let joint (a, b) (c, d) =
     (b + 1 >= c && a <= d + 1) || (d + 1 >= a && c <= b + 1)
 
@@ -65,34 +64,57 @@ let is_balanced set =
 		| Node (l, _, r, _) ->
 			let l_first, l_second = helper l
 			and r_first, r_second = helper r
-			in (max l_first r_first + 1, l_second && r_second && (abs (l_first - r_first) <= 2))
+			in let (a, b) = (max l_first r_first + 1, l_second && r_second && (abs (l_first - r_first) <= 2))
+			in (*print_string ("(" ^ (string_of_int a) ^ ", " ^ (if b then "true" else "false") ^ ")");
+			   print_string ("(" ^ (string_of_int l_first) ^ ", ");
+			   print_string ((if l_second then "true" else "false") ^ ", ");
+			   print_string ((if r_second then "true" else "false") ^ ", ");
+			   print_string ((string_of_int r_first) ^ ")\n");*)
+			   (a, b)
 	in match helper set with (_, res) -> res
 
-(* T = O(1) *)
-let bal l k r =
+(* Zwraca set stworzony z drzew l, r i elementu o wartości k między nimi 			*)
+(* Dodatkowo drugim elementem zwracanej pary jest true, jeśli coś zostało zmienione *)
+(* albo false, jeśli drzewo jest już zbalansowane i nic nie zmieniono 				*)
+let bal_fullinfo l k r =
   let hl = height l in
   let hr = height r in
+  print_string ("(hl, hr) = (" ^ (string_of_int hl) ^ ", " ^ (string_of_int hr) ^ ")\n");
   if hl > hr + 2 then
     match l with
     | Node (ll, lk, lr, _) ->
-        if height ll >= height lr then make ll lk (make lr k r)
+        if height ll >= height lr then ((make ll lk (make lr k r)), true)
         else
           (match lr with
           | Node (lrl, lrk, lrr, _) ->
-              make (make ll lk lrl) lrk (make lrr k r)
+              ((make (make ll lk lrl) lrk (make lrr k r)), true)
           | Empty -> assert false)
     | Empty -> assert false
   else if hr > hl + 2 then
     match r with
     | Node (rl, rk, rr, _) ->
-        if height rr >= height rl then make (make l k rl) rk rr
+        if height rr >= height rl then ((make (make l k rl) rk rr), true)
         else
           (match rl with
           | Node (rll, rlk, rlr, _) ->
-              make (make l k rll) rlk (make rlr rk rr)
+              ((make (make l k rll) rlk (make rlr rk rr)), true)
           | Empty -> assert false)
     | Empty -> assert false
-  else Node (l, k, r, max hl hr + 1)
+  else ((Node (l, k, r, max hl hr + 1)), false)
+
+(* Wykonuje balansowanie drzewa jeden raz i zwraca nowy set *)
+let bal l k r =
+	match bal_fullinfo l k r with
+	(set,_) -> set
+
+(* Wykonuje balansowanie drzewa tak długo, aż będzie zbalansowane *)
+let rec bal_iterate l k r =
+	print_string "here\n";
+	match bal_fullinfo l k r with
+	| (Node(sl, sk, sr, sh), changed) ->
+		if changed then bal_iterate sl sk sr
+		else Node(sl, sk, sr, sh)
+	| (Empty, _) -> assert false
 
 let rec min_elt set = match set with
   | Node (Empty, k, _, _) -> k
@@ -101,7 +123,7 @@ let rec min_elt set = match set with
 
 let rec remove_min_elt set = match set with
   | Node (Empty, _, r, _) -> r
-  | Node (l, k, r, _) -> bal (remove_min_elt l) k r
+  | Node (l, k, r, _) -> assert(is_balanced (bal (remove_min_elt l) k r)); bal (remove_min_elt l) k r
   | Empty -> invalid_arg "PSet.remove_min_elt"
 
 let merge t1 t2 =
@@ -110,7 +132,8 @@ let merge t1 t2 =
   | _, Empty -> t1
   | _ ->
       let k = min_elt t2 in
-      bal t1 k (remove_min_elt t2)
+      assert(is_balanced (bal_iterate t1 k (remove_min_elt t2)));
+      bal_iterate t1 k (remove_min_elt t2)
 
 let empty = Empty
 
@@ -257,6 +280,11 @@ let split_list x l =
 	in match helper [] l with
 		(l, pres, r) -> (List.rev l, pres, r)
 
+let rec dfs f set =
+	match set with
+	| Node(l, k, r, h) -> f (l, k, r, h); dfs f l; dfs f r
+	| Empty -> ()
+
 let str_pair (a, b) =
 	"(" ^ (string_of_int a) ^ ", " ^ (string_of_int b) ^ ")"
 
@@ -271,7 +299,7 @@ let str_list l =
 let print s   = print_string s
 and println s = print_string (s ^ "\n");;
 
-let ilst = gen_interval_list 10;;
+let ilst = gen_interval_list 13;;
 println (str_list ilst);;
 
 let iset = set_from_list ilst;;
@@ -296,6 +324,11 @@ assert(ilst_pres = iset_pres);;
 assert(ilst_l = elements iset_l);;
 assert(ilst_r = elements iset_r);;
 
+println "removing test";;
 let iset = set_from_list ilst;;
+
+println "dfs";;
+dfs (function (l, k, r, h) -> println (str_pair k ^ " : " ^ (string_of_int h))) iset;;
+
 println (str_list (elements iset));;
-println (str_list (elements (remove (28, 29) iset)));;
+println (str_list (elements (remove (230, 230) iset)));;
