@@ -29,10 +29,15 @@ let cmp_with_num x (a, b) =
 	else if x > b then 1
 	else 0
 
+let add_unsafe a b = if b = max_int || a + b < a then max_int else a + b
+
 (* Zwraca true jeśli [a, b] a [c, d] nachodzą na siebie lub są przyległe *)
 let joint (a, b) (c, d) =
-    if (b + 1 >= c && a <= d + 1) || (d + 1 >= a && c <= b + 1) then 0
-	else cmp (a, b) (c, d) 
+    (*if (b + 1 >= c && a <= d + 1) || (d + 1 >= a && c <= b + 1) then 0
+	else cmp (a, b) (c, d) *)
+	if (add_unsafe b 1 >= c && a <= add_unsafe d 1) ||
+	   (add_unsafe d 1 >= a && c <= add_unsafe b 1) then 0
+	else cmp (a, b) (c, d)
 
 (* Zwracają odpowiednio minimum i maksimum z dwóch liczb całkowitych *)
 let min (x : int) (y : int) = if x < y then x else y
@@ -190,7 +195,6 @@ let split x set =
 let joint_rightmost x set =
 	let rec helper acc = function
 		| Node (l, k, r, _) ->
-			println ("joint " ^ (str_pair x) ^ " " ^ (str_pair k) ^ " = " ^ (string_of_int (joint x k)));
 			if joint x k >= 0 then helper k r
 			else helper acc l
 		| Empty -> acc
@@ -201,7 +205,6 @@ let joint_rightmost x set =
 let joint_leftmost x set =
 	let rec helper acc = function
 		| Node (l, k, r, _) ->
-			println ("joint " ^ (str_pair x) ^ " " ^ (str_pair k) ^ " = " ^ (string_of_int (joint x k)));
 			if joint x k <= 0 then helper k l
 			else helper acc r
 		| Empty -> acc
@@ -218,9 +221,9 @@ let remove (x, y) set =
 let add x set =
 	let rightmost = joint_rightmost x set
 	and leftmost  = joint_leftmost  x set in
-	println ("rightmost = " ^ (str_pair rightmost));
-	println ("leftmost = " ^ (str_pair leftmost));
-	let k = (min (first x) (first leftmost), max (second x) (second rightmost))
+	(*println ("rightmost = " ^ (str_pair rightmost));
+	println ("leftmost = " ^ (str_pair leftmost));*)
+	let k = unify x (first leftmost, second rightmost)
 	in add_brutal k (remove k set)
 
 (* Zwraca true jeśli [x] należy do jakiegoś przedziału w [set] *)
@@ -247,10 +250,12 @@ let fold f set acc =
           loop (f k (loop acc l)) r in
   loop acc set
 
+let size (a, b) = b - a + 1
+
 (*TODO *)
 let below x set =
 	let s = (match (split (x + 1) set) with (l, _, _) -> l) in
-	let f (a, b) acc = acc + b - a + 1 in
+	let f a acc = add_unsafe acc (size a) in
 	fold f s 0
 
 
@@ -447,13 +452,6 @@ test 91 (elements (add (6,12) s) = [(-1, 1); (3, 4); (6, 12); (14, 15); (17, 18)
 test 92 (elements (add (6,13) s) = [(-1, 1); (3, 4); (6, 15); (17, 18); (20, 21)]);;
 test 93 (elements (add (5,13) s) = [(-1, 1); (3, 15); (17, 18); (20, 21)]);;
 
-print_tree (add (6,13) s);;
-println "";;
-println (str_list (elements s));;
-println (str_list (elements (add (6,13) s)));;
-
-assert false;;
-
 (* remove *)
 test 97 (elements (remove (-10,-2) s) = [(-1, 1); (3, 4); (6, 7); (9, 10); (14, 15); (17, 18); (20, 21)]);;
 test 98 (elements (remove (-10,-1) s) = [(0, 1); (3, 4); (6, 7); (9, 10); (14, 15); (17, 18); (20, 21)]);;
@@ -605,6 +603,10 @@ test 242 (elements (add (min_int, min_int+1) (add (min_int+1, min_int+1) empty))
 
 (* od konca do konca *)
 test 246 (below max_int (add (min_int, max_int) empty) = max_int);;
+
+println (string_of_int ((below max_int (add (min_int, max_int) empty))));;
+
+assert false;;
 
 (* od srodka do konca *)
 test 249 (below 0 (add (min_int, max_int) empty) = max_int);;
