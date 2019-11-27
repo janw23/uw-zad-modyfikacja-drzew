@@ -63,13 +63,28 @@ and slice_right (x : int) (_, b) = (x + 1, b)
 (* Warunek konieczny każdego przedziału [x, y]: x <= y            *)
 type t =
     | Empty                              (* Pusty Set *)
-    | Node of t * (int * int) * t * int  (* lewe poddrzewo, przedział, prawe poddrzewo, wysokość *)
+    | Node of t * (int * int) * t * int * int  (* lewe poddrzewo, przedział, prawe poddrzewo, wysokość, liczba elem w poddrzewie *)
 
 let height set = match set with
-  | Node (_, _, _, h) -> h
+  | Node (_, _, _, h, _) -> h
   | Empty -> 0
 
-let make l k r = Node (l, k, r, max (height l) (height r) + 1)
+let size (a, b) =
+	if a > 0 then b - a + 1
+	else (if a + max_int <= b then max_int
+	else -(a - b) + 1)
+	(*if a - b + 2 <= 0 then max_int
+	else b - a + 1*)
+
+(* Zwraca łączną liczbę elementów w drzewie *)
+let elem_count set =
+	match set with
+	| Empty -> 0
+	| Node (_, _, _, _, c) -> c
+
+let make l k r =
+	Node (l, k, r, max (height l) (height r) + 1,
+		 add_unsafe (add_unsafe (elem_count l) (elem_count r)) (size k))
 
 (* DEBUG FUNCTION TO USE IN ASSERTIONS *)
 (* CHECKS IF SET'S TREE IS BALANCED    *)
@@ -77,7 +92,7 @@ let is_balanced set =
 	let rec helper s =
 		match s with
 		| Empty -> (0, true)
-		| Node (l, _, r, _) ->
+		| Node (l, _, r, _, _) ->
 			let l_first, l_second = helper l
 			and r_first, r_second = helper r
 			in let (a, b) = (max l_first r_first + 1, l_second && r_second && (abs (l_first - r_first) <= 2))
@@ -97,34 +112,34 @@ let bal l k r =
   let hr = height r in
   if hl > hr + 2 then
     match l with
-    | Node (ll, lk, lr, _) ->
+    | Node (ll, lk, lr, _, _) ->
         if height ll >= height lr then make ll lk (make lr k r)
         else
           (match lr with
-          | Node (lrl, lrk, lrr, _) ->
+          | Node (lrl, lrk, lrr, _, _) ->
               make (make ll lk lrl) lrk (make lrr k r)
           | Empty -> assert false)
     | Empty -> assert false
   else if hr > hl + 2 then
     match r with
-    | Node (rl, rk, rr, _) ->
+    | Node (rl, rk, rr, _, _) ->
         if height rr >= height rl then make (make l k rl) rk rr
         else
           (match rl with
-          | Node (rll, rlk, rlr, _) ->
+          | Node (rll, rlk, rlr, _, _) ->
               make (make l k rll) rlk (make rlr rk rr)
           | Empty -> assert false)
     | Empty -> assert false
-  else Node (l, k, r, max hl hr + 1)
+  else make l k r
 
 let rec min_elt set = match set with
-  | Node (Empty, k, _, _) -> k
-  | Node (l, _, _, _) -> min_elt l
+  | Node (Empty, k, _, _, _) -> k
+  | Node (l, _, _, _, _) -> min_elt l
   | Empty -> raise Not_found
 
 let rec remove_min_elt set = match set with
-  | Node (Empty, _, r, _) -> r
-  | Node (l, k, r, _) -> assert(is_balanced (bal (remove_min_elt l) k r)); bal (remove_min_elt l) k r
+  | Node (Empty, _, r, _, _) -> r
+  | Node (l, k, r, _, _) -> assert(is_balanced (bal (remove_min_elt l) k r)); bal (remove_min_elt l) k r
   | Empty -> invalid_arg "PSet.remove_min_elt"
 
 let merge t1 t2 =
@@ -145,16 +160,16 @@ let is_empty set =
 (* TODO *)
 (* T = O(log(height set)) *)
 let rec add_brutal x set = match set with
-  | Node (l, k, r, h) ->
+  | Node (l, k, r, h, c) ->
       let c = cmp x k in
-      if c = 0 then Node (l, x, r, h)
+      if c = 0 then make l x r
       else if c < 0 then
         let nl = add_brutal x l in
         bal nl k r
       else
         let nr = add_brutal x r in
         bal l k nr
-  | Empty -> Node (Empty, x, Empty, 1)
+  | Empty -> make Empty x Empty
 
 (* Łączy drzewa l, r używając v jako wartości nowego korzenia          *)
 (* Wszystkie przedziały w l, v, r powinny być rozłączne i nieprzyległe *)
@@ -163,7 +178,7 @@ let rec join l v r =
   match (l, r) with
   | (Empty, _) -> add_brutal v r
   | (_, Empty) -> add_brutal v l
-  | (Node(ll, lv, lr, lh), Node(rl, rv, rr, rh)) ->
+  | (Node(ll, lv, lr, lh, lc), Node(rl, rv, rr, rh, rc)) ->
       if lh > rh + 2 then bal ll lv (join lr v r) else
       if rh > lh + 2 then bal (join l v rl) rv rr else
       make l v r
@@ -174,7 +189,7 @@ let rec join l v r =
 let split x set =
   let rec loop x = function
     | Empty -> (Empty, false, Empty)
-    | Node (l, v, r, _) ->
+    | Node (l, v, r, _, _) ->
         let c = cmp_with_num x v in
         if c = 0 then
         	let nl = if slicable_left  x v then add_brutal (slice_left  x v) l else l
@@ -194,7 +209,7 @@ let split x set =
 (* który jest nachodzący lub przyległy do przedziału [x]     *)
 let joint_rightmost x set =
 	let rec helper acc = function
-		| Node (l, k, r, _) ->
+		| Node (l, k, r, _, _) ->
 			if joint x k >= 0 then helper k r
 			else helper acc l
 		| Empty -> acc
@@ -204,7 +219,7 @@ let joint_rightmost x set =
 (* który jest nachodzący lub przyległy do przedziału [x]     *)
 let joint_leftmost x set =
 	let rec helper acc = function
-		| Node (l, k, r, _) ->
+		| Node (l, k, r, _, _) ->
 			if joint x k <= 0 then helper k l
 			else helper acc r
 		| Empty -> acc
@@ -221,15 +236,13 @@ let remove (x, y) set =
 let add x set =
 	let rightmost = joint_rightmost x set
 	and leftmost  = joint_leftmost  x set in
-	(*println ("rightmost = " ^ (str_pair rightmost));
-	println ("leftmost = " ^ (str_pair leftmost));*)
 	let k = unify x (first leftmost, second rightmost)
 	in add_brutal k (remove k set)
 
 (* Zwraca true jeśli [x] należy do jakiegoś przedziału w [set] *)
 let mem x set =
   	let rec loop = function
-    	| Node (l, k, r, _) ->
+    	| Node (l, k, r, _, _) ->
         	let c = cmp_with_num x k in
         	c = 0 || loop (if c < 0 then l else r)
     	| Empty -> false
@@ -240,29 +253,27 @@ let exists = mem
 let iter f set =
   let rec loop = function
     | Empty -> ()
-    | Node (l, k, r, _) -> loop l; f k; loop r in
+    | Node (l, k, r, _, _) -> loop l; f k; loop r in
   loop set
 
 let fold f set acc =
   let rec loop acc = function
     | Empty -> acc
-    | Node (l, k, r, _) ->
+    | Node (l, k, r, _, _) ->
           loop (f k (loop acc l)) r in
   loop acc set
 
-let size (a, b) = b - a + 1
-
 (*TODO *)
 let below x set =
-	let s = (match (split (x + 1) set) with (l, _, _) -> l) in
-	let f a acc = add_unsafe acc (size a) in
-	fold f s 0
-
+	let s, pres = match split x set with (a, b, _) -> (a, b) in
+	(*println ("debug = " ^ (string_of_int (elem_count s)));*)
+	add_unsafe (elem_count s) (if pres then 1 else 0)
+	
 
 let elements set = 
   let rec loop acc = function
       Empty -> acc
-    | Node(l, k, r, _) -> loop (k :: loop acc r) l in
+    | Node(l, k, r, _, _) -> loop (k :: loop acc r) l in
   loop [] set;;
 
 (* -------DEBUGGING------- *)
@@ -302,7 +313,7 @@ let split_list x l =
 
 let rec dfs f set =
 	match set with
-	| Node(l, k, r, h) -> f (l, k, r, h); dfs f l; dfs f r
+	| Node(l, k, r, h, c) -> f (l, k, r, h); dfs f l; dfs f r
 	| Empty -> ()
 
 let str_list l =
@@ -357,9 +368,9 @@ println (str_list (elements (remove (1000, 6000) iset)));;
 
 let string_of_tree t = 
   let rec fmt_tree fmt = function Empty -> Format.fprintf fmt "Empty"
-    | Node (l,(a,b),r,_) ->
-        Format.fprintf fmt "@[<hv 5>Node(%a,@ (%d,%d),@ %a@,)@]"
-          fmt_tree l a b fmt_tree r
+    | Node (l,(a,b),r,h,c) ->
+        Format.fprintf fmt "@[<hv 5>Node(%a,@ (%d,%d),@ %a@,@ %d,@ %d)@]"
+          fmt_tree l a b fmt_tree r h c
   in
   fmt_tree Format.str_formatter t;
   Format.flush_str_formatter ();;
@@ -396,6 +407,10 @@ test 35 (elements s = [(1, 28)]);;
 test 36 (below 17 s = 17);;
 test 37 (below 17 s = 17);;
 test 38 (below 50 s = 28);;
+
+println (str_list (elements s));;
+println (string_of_tree s);;
+println (string_of_int (below 17 s));;
 
 
 (* testy konkretne *)
@@ -603,10 +618,6 @@ test 242 (elements (add (min_int, min_int+1) (add (min_int+1, min_int+1) empty))
 
 (* od konca do konca *)
 test 246 (below max_int (add (min_int, max_int) empty) = max_int);;
-
-println (string_of_int ((below max_int (add (min_int, max_int) empty))));;
-
-assert false;;
 
 (* od srodka do konca *)
 test 249 (below 0 (add (min_int, max_int) empty) = max_int);;
