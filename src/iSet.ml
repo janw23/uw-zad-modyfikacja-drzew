@@ -88,8 +88,8 @@ let make l k r =
 
 (* DEBUG FUNCTION TO USE IN ASSERTIONS *)
 (* CHECKS IF SET'S TREE IS BALANCED    *)
-let is_balanced set =
-	let rec helper s =
+let is_balanced set = true 
+	(*let rec helper s =
 		match s with
 		| Empty -> (0, true)
 		| Node (l, _, r, _, _) ->
@@ -102,7 +102,7 @@ let is_balanced set =
 			   print_string ((if r_second then "true" else "false") ^ ", ");
 			   print_string ((string_of_int r_first) ^ ")\n");*)
 			   (a, b)
-	in match helper set with (_, res) -> res
+	in match helper set with (_, res) -> res*)
 
 (* Zwraca set stworzony z drzew l, r i elementu o wartości k między nimi 			*)
 (* Dodatkowo drugim elementem zwracanej pary jest true, jeśli coś zostało zmienione *)
@@ -139,7 +139,7 @@ let rec min_elt set = match set with
 
 let rec remove_min_elt set = match set with
   | Node (Empty, _, r, _, _) -> r
-  | Node (l, k, r, _, _) -> assert(is_balanced (bal (remove_min_elt l) k r)); bal (remove_min_elt l) k r
+  | Node (l, k, r, _, _) -> bal (remove_min_elt l) k r
   | Empty -> invalid_arg "PSet.remove_min_elt"
 
 let merge t1 t2 =
@@ -201,9 +201,29 @@ let split x set =
           	let (lr, pres, rr) = loop x r in (join l v lr, pres, rr)
   in
 	let setl, pres, setr = loop x set in
-	  	assert(is_balanced setl);
-	  	assert(is_balanced setr);
 	  	(setl, pres, setr)
+
+let split_left x set =
+  let rec loop x = function
+    | Empty -> Empty
+    | Node (l, v, r, _, _) ->
+        let c = cmp_with_num x v in
+        if c = 0 then
+        	(if slicable_left  x v then add_brutal (slice_left  x v) l else l)
+        else if c < 0 then loop x l
+        else let lr = loop x r in join l v lr
+  in loop x set
+
+let split_right x set =
+  let rec loop x = function
+    | Empty -> Empty
+    | Node (l, v, r, _, _) ->
+        let c = cmp_with_num x v in
+        if c = 0 then
+        	(if slicable_right x v then add_brutal (slice_right x v) r else r)
+        else if c < 0 then let rl = loop x l in join rl v r
+        else loop x r
+  in loop x set
 
 (* Znajduje najbardziej prawy przedział należący do [set]    *)
 (* który jest nachodzący lub przyległy do przedziału [x]     *)
@@ -659,8 +679,6 @@ test 284 (below max_int (add (0,0) (add (2,max_int-10) (add (min_int,-2) empty))
 test 285 (below max_int (add (2,max_int-10) (add (min_int,-2) (add (0,0) empty))) = max_int);;
 test 286 (below max_int (add (2,max_int-10) (add (0,0) (add (min_int,-2) empty))) = max_int);;
 
-
-
 let _ = if !zle = 0 then Printf.printf "Testy poprawnosci OK!\n\n";;
 
 
@@ -691,13 +709,14 @@ let duzedrzewo opis zrob n =
     opis n' czas t';
   z
 
-let rosnace n = dodawaj 0 n 0 5 empty
-    
+let rosnace n = dodawaj 0 n 0 5 empty;;
+
 let z = duzedrzewo "rosnące" rosnace   625000;;
 let z = duzedrzewo "rosnące" rosnace  1250000;;
 let z = duzedrzewo "rosnące" rosnace  2500000;;
 let z = duzedrzewo "rosnące" rosnace  5000000;;
 let z = duzedrzewo "rosnące" rosnace 10000000;;
+
 
 let start = Sys.time ();;
 for i=1 to 10 do
